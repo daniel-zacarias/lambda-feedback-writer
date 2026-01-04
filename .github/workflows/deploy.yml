@@ -35,7 +35,6 @@ jobs:
       - name: Deploy to Lambda
         run: |
           FUNCTION_NAME="${{ secrets.LAMBDA_FUNCTION_NAME }}"
-          SNS_TOPIC_ARN="${{ secrets.SNS_TOPIC_ARN }}"
           ZIP_FILE="target/function.zip"
           
           echo "Deploying $ZIP_FILE to function $FUNCTION_NAME"

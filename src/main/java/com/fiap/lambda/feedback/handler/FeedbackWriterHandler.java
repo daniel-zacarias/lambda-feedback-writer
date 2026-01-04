@@ -8,34 +8,46 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fiap.lambda.feedback.dto.FeedbackDTO;
 import com.fiap.lambda.feedback.model.FeedbackEntity;
 import com.fiap.lambda.feedback.repository.FeedbackRepository;
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
+import com.fiap.lambda.feedback.repository.IFeedbackRepository;
 
 import java.util.UUID;
 
-@ApplicationScoped
 public class FeedbackWriterHandler implements RequestHandler<SQSEvent, Void>{
 
-    @Inject
-    ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final IFeedbackRepository feedbackRepository;
 
-    @Inject
-    FeedbackRepository feedbackRepository;
+    public FeedbackWriterHandler() {
+        String tableName = System.getenv("FEEDBACK_TABLE_NAME");
+        if (tableName == null || tableName.isBlank()) {
+            throw new IllegalStateException("Variável de ambiente FEEDBACK_TABLE_NAME não configurada.");
+        }
+        this.feedbackRepository = new FeedbackRepository(tableName);
+    }
+
+    // construtor só para teste
+    FeedbackWriterHandler(IFeedbackRepository  feedbackRepository) {
+        this.feedbackRepository = feedbackRepository;
+    }
 
     @Override
     public Void handleRequest(SQSEvent event, Context context) {
+
+        if (event == null || event.getRecords() == null || event.getRecords().isEmpty()) {
+            System.out.println("Nenhum registro recebido no evento SQS.");
+            return null;
+        }
 
         event.getRecords().forEach(sqsMessage -> {
             try {
                 String body = sqsMessage.getBody();
 
                 JsonNode snsEnvelope = objectMapper.readTree(body);
-
+                String snsTimestamp = snsEnvelope.get("Timestamp").asText();
                 String feedbackJson = snsEnvelope.get("Message").asText();
 
-                FeedbackDTO feedback = objectMapper.readValue(feedbackJson, FeedbackDTO.class);
-
-                String snsTimestamp = snsEnvelope.get("Timestamp").asText();
+                JsonNode snsMessage = objectMapper.readTree(feedbackJson);
+                FeedbackDTO feedback = objectMapper.treeToValue(snsMessage, FeedbackDTO.class);
 
                 System.out.printf(
                         "Feedback recebido: descricao='%s', nota=%d%n",
@@ -46,14 +58,10 @@ public class FeedbackWriterHandler implements RequestHandler<SQSEvent, Void>{
 
                 FeedbackEntity entity = toEntity(feedback, snsTimestamp);
 
-                if (feedbackRepository != null) {
-                    feedbackRepository.salvar(entity);
-                } else {
-                    System.out.println("FeedbackRepository nulo (provavelmente em teste unitário), não salvando no DynamoDB.");
-                }
+                feedbackRepository.salvar(entity);
+                System.out.println("Salvo no DynamoDB: id=" + entity.getId());
 
             } catch (Exception e) {
-
                 System.err.println("Erro ao processar mensagem SQS: " + e.getMessage());
                 e.printStackTrace();
             }

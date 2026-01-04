@@ -42,7 +42,7 @@
             <artifactId>quarkus-jackson</artifactId>
         </dependency>
         <dependency>
-            <groupId>io.quarkiverse.amazonservices</groupId>
+            <groupId>io.quarkus</groupId>
             <artifactId>quarkus-amazon-lambda</artifactId>
         </dependency>
         <dependency>

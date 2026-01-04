@@ -9,18 +9,28 @@ import com.fiap.lambda.feedback.dto.FeedbackDTO;
 import com.fiap.lambda.feedback.model.FeedbackEntity;
 import com.fiap.lambda.feedback.repository.FeedbackRepository;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 
-import java.util.UUID;
+import org.jboss.logging.Logger;
 
 @ApplicationScoped
-public class FeedbackWriterHandler implements RequestHandler<SQSEvent, Void>{
+public class FeedbackWriterHandler implements RequestHandler<SQSEvent, Void> {
 
-    @Inject
     ObjectMapper objectMapper;
 
-    @Inject
     FeedbackRepository feedbackRepository;
+
+    public FeedbackWriterHandler() {
+        this(new ObjectMapper(), new FeedbackRepository());
+    }
+
+    public FeedbackWriterHandler(
+            ObjectMapper objectMapper,
+            FeedbackRepository feedbackRepository) {
+        this.objectMapper = objectMapper;
+        this.feedbackRepository = feedbackRepository;
+    }
+
+    private static final Logger LOG = Logger.getLogger(FeedbackWriterHandler.class);
 
     @Override
     public Void handleRequest(SQSEvent event, Context context) {
@@ -37,25 +47,19 @@ public class FeedbackWriterHandler implements RequestHandler<SQSEvent, Void>{
 
                 String snsTimestamp = snsEnvelope.get("Timestamp").asText();
 
-                System.out.printf(
-                        "Feedback recebido: descricao='%s', nota=%d%n",
-                        feedback.getDescricao(),
-                        feedback.getNota()
-                );
-                System.out.println("Timestamp SNS: " + snsTimestamp);
+                LOG.infof("Feedback recebido: descricao='%s', nota=%d", feedback.getDescricao(), feedback.getNota());
+                LOG.info("Timestamp SNS: " + snsTimestamp);
 
                 FeedbackEntity entity = toEntity(feedback, snsTimestamp);
 
                 if (feedbackRepository != null) {
                     feedbackRepository.salvar(entity);
                 } else {
-                    System.out.println("FeedbackRepository nulo (provavelmente em teste unitário), não salvando no DynamoDB.");
+                    LOG.warn("FeedbackRepository nulo (provavelmente em teste unitário), não salvando no DynamoDB.");
                 }
 
             } catch (Exception e) {
-
-                System.err.println("Erro ao processar mensagem SQS: " + e.getMessage());
-                e.printStackTrace();
+                LOG.error("Erro ao processar mensagem SQS: " + e.getMessage(), e);
             }
         });
 
@@ -64,7 +68,7 @@ public class FeedbackWriterHandler implements RequestHandler<SQSEvent, Void>{
 
     private FeedbackEntity toEntity(FeedbackDTO dto, String timestampSns) {
         FeedbackEntity entity = new FeedbackEntity();
-        entity.setId(UUID.randomUUID().toString());
+        entity.setId(dto.getId());
         entity.setDescricao(dto.getDescricao());
         entity.setNota(dto.getNota());
         entity.setTimestamp(timestampSns);

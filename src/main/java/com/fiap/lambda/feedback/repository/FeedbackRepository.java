@@ -1,33 +1,52 @@
 package com.fiap.lambda.feedback.repository;
 
+import org.jboss.logging.Logger;
 
 import com.fiap.lambda.feedback.model.FeedbackEntity;
+
+import io.quarkus.logging.Log;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
 import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.DynamoDbException;
 
 @ApplicationScoped
 public class FeedbackRepository {
+    private static final Logger LOG = Logger.getLogger(FeedbackRepository.class);
 
     @Inject
-    DynamoDbEnhancedClient enhancedClient;
+    private final DynamoDbTable<FeedbackEntity> table;
 
     private static final String TABLE_NAME = "feedback";
 
+    public FeedbackRepository() {
+        DynamoDbClient dynamoDbClient = DynamoDbClient.builder().build();
+
+        DynamoDbEnhancedClient enhancedClient = DynamoDbEnhancedClient.builder()
+                .dynamoDbClient(dynamoDbClient)
+                .build();
+
+        this.table = enhancedClient.table(
+                TABLE_NAME,
+                TableSchema.fromBean(FeedbackEntity.class));
+    }
+
+    public FeedbackRepository(DynamoDbEnhancedClient enhancedClient) {
+        this.table = enhancedClient.table(
+                TABLE_NAME,
+                TableSchema.fromBean(FeedbackEntity.class));
+    }
+
     public void salvar(FeedbackEntity entity) {
         try {
-            DynamoDbTable<FeedbackEntity> table =
-                    enhancedClient.table(TABLE_NAME, TableSchema.fromBean(FeedbackEntity.class));
+            this.table.putItem(entity);
 
-            table.putItem(entity);
-
-            System.out.println("Feedback salvo com sucesso!");
-        }
-        catch (DynamoDbException e) {
-            System.err.println("Erro ao salvar no DynamoDB: " + e.getMessage());
+            LOG.info("Feedback salvo com sucesso!");
+        } catch (DynamoDbException e) {
+            Log.info("Erro ao salvar no DynamoDB: " + e.getMessage());
             throw e;
         }
     }

@@ -36,7 +36,7 @@ public class FeedbackWriterHandler implements RequestHandler<SQSEvent, Void> {
     public Void handleRequest(SQSEvent event, Context context) {
 
         if (event == null || event.getRecords() == null || event.getRecords().isEmpty()) {
-            System.out.println("Nenhum registro recebido no evento SQS.");
+            LOG.info("Nenhum registro recebido no evento SQS.");
             return null;
         }
 
